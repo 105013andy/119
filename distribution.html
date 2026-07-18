@@ -251,7 +251,9 @@
             const tbody = document.getElementById('studentTableBody');
             tbody.innerHTML = '';
             
-            const sortedIds = Object.keys(globalData.students).sort((a,b)=>a-b);
+            let sortedIds = Object.keys(globalData.students).sort((a,b)=>a-b);
+            // 篩選出需要分發的學生
+            sortedIds = sortedIds.filter(id => !['11', '13'].includes(id));
 
             sortedIds.forEach(id => {
                 const name = globalData.students[id];
@@ -345,7 +347,9 @@
             }
 
             // 產生全新隨機順序
-            const studentIds = Object.keys(globalData.students);
+            let studentIds = Object.keys(globalData.students);
+            // 移除不需要分發的學生
+            studentIds = studentIds.filter(id => !['11', '13'].includes(id));
             const scoreList = [];
 
             // 計算分數
