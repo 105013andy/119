@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>座位分發系統</title>
+    <style>
+        /* --- 基礎樣式 --- */
+        body { font-family: 'Segoe UI', 'Microsoft JhengHei', sans-serif; padding: 20px; background-color: #f4f7f9; display: flex; flex-direction: column; height: 95vh; box-sizing: border-box; }
+        h1 { color: #333; text-align: center; margin: 0 0 20px 0; font-size: 24px; }
+        
+        /* --- 版面配置 --- */
+        .main-container { display: flex; gap: 20px; flex: 1; overflow: hidden; }
+        
+        /* 側邊欄 (加寬以容納表格) */
+        .sidebar { 
+            width: 400px; 
+            background-color: #fff; 
+            padding: 15px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); 
+            display: flex; 
+            flex-direction: column; 
+            gap: 15px;
+        }
+
+        /* 側邊欄區塊標題 */
+        h3 { margin: 0 0 10px 0; color: #555; border-bottom: 2px solid #eee; padding-bottom: 5px; font-size: 16px; }
+
+        /* 區塊 1: 學生名單與設定 (可捲動) */
+        .panel-section { flex: 1; overflow-y: auto; border: 1px solid #eee; border-radius: 6px; padding: 5px; }
+        
+        /* 表格樣式 */
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { text-align: left; background: #f8f9fa; padding: 5px; position: sticky; top: 0; }
+        td { padding: 5px; border-bottom: 1px solid #eee; vertical-align: middle; }
+        
+        /* 輸入框 */
+        input.adj-input { width: 40px; padding: 3px; border: 1px solid #ccc; border-radius: 4px; text-align: center; }
+        
+        /* 狀態標籤 */
+        .tag { padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+        .tag-filled { background: #e3f2fd; color: #0d47a1; }
+        .tag-empty { background: #ffebee; color: #c62828; }
+        .tag-random { background: #e0f2f1; color: #00695c; }
+
+        /* 區塊 2: 分發順序列表 */
+        #orderList { list-style: none; padding: 0; margin: 0; }
+        #orderList li { 
+            padding: 8px; margin-bottom: 4px; background: #f8f9fa; border-radius: 4px; font-size: 14px; 
+            display: flex; justify-content: space-between; border-left: 4px solid transparent;
+        }
+        #orderList li.active { border-left-color: #ffc107; background: #fff3cd; font-weight: bold; }
+        #orderList li.done { border-left-color: #28a745; background: #d4edda; color: #155724; }
+
+        /* 按鈕群組 */
+        .btn-group { display: flex; gap: 10px; margin-bottom: 5px; flex-wrap: wrap; }
+        button { flex: 1; padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; transition: all 0.2s; min-width: 120px; }
+        
+        #btnGenerate { background-color: #17a2b8; color: white; }
+        #btnGenerate:hover { background-color: #138496; }
+        
+        #btnStart { background-color: #28a745; color: white; }
+        #btnStart:hover:not(:disabled) { background-color: #218838; }
+        #btnStart:disabled { background-color: #ccc; cursor: not-allowed; }
+
+        /* 記錄狀態標籤 */
+        .record-status { 
+            padding: 8px; 
+            border-radius: 6px; 
+            font-size: 12px; 
+            text-align: center; 
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .record-status.exists { 
+            background: #d4edda; 
+            color: #155724; 
+            border: 1px solid #c3e6cb;
+        }
+        .record-status.none { 
+            background: #e2e3e5; 
+            color: #383d41;
+            border: 1px solid #d6d8db;
+        }
+
+        /* --- 右側座位表 --- */
+        .chart-area { flex-grow: 1; background-color: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); overflow: auto; display: flex; flex-direction: column; align-items: center; }
+
+        /* 講台 */
+        .stage-area { width: 100%; display: flex; justify-content: center; margin-bottom: 40px; }
+        .lectern { width: 180px; height: 50px; background-color: #795548; color: white; display: flex; align-items: center; justify-content: center; border-radius: 6px; font-weight: bold; letter-spacing: 3px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); border-bottom: 5px solid #5d4037; }
+
+        #seatMap { display: grid; gap: 8px; }
+        
+        /* 座位樣式 */
+        .seat { 
+            width: 65px; height: 65px; 
+            background-color: #f8f9fa; border: 2px solid #e9ecef; color: #495057;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            border-radius: 8px; transition: all 0.5s; position: relative; cursor: pointer;
+        }
+        .seat.unavailable { background-color: #ffebee; border-color: #ffcdd2; opacity: 0.6; cursor: not-allowed; }
+        
+        /* 已分發樣式 (明顯色彩) */
+        .seat.distributed { 
+            background-color: #007bff; border-color: #0056b3; color: white; 
+            transform: scale(1.05); box-shadow: 0 4px 8px rgba(0,123,255,0.3); z-index: 10;
+        }
+        
+        .seat-id { font-size: 10px; margin-top: 2px; opacity: 0.8; }
+        .student-id { font-size: 20px; font-weight: bold; line-height: 1; }
+
+        /* 結果區域 */
+        .result-actions { 
+            margin-top: 15px; 
+            display: flex; 
+            gap: 10px; 
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .result-actions button { 
+            min-width: 100px;
+            padding: 10px 15px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🧑‍🏫 座位分發系統</h1>
+
+    <div class="main-container">
+        <div class="sidebar">
+            <div id="recordStatus" class="record-status none">
+                📝 無修改記錄 - 將使用完全隨機順序
+            </div>
+
+            <div class="btn-group">
+                <button id="btnGenerate">🎲 1. 產生隨機數與順序</button>
+                <button id="btnStart" disabled>▶️ 2. 開始分發</button>
+            </div>
+
+            <div class="panel-section" style="flex: 3;">
+                <h3>📋 學生名單與設定 (依座號)</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th width="15%">號</th>
+                            <th width="25%">姓名</th>
+                            <th width="20%">狀態</th>
+                            <th width="15%">調整</th>
+                            <th width="25%">隨機(總分)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="studentTableBody">
+                        <tr><td colspan="5" align="center">載入中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="panel-section" style="flex: 2; background-color: #fffbf0;">
+                <h3>🏆 分發順序 (依高分排序)</h3>
+                <ul id="orderList">
+                    <li style="color:#999; text-align:center;">請先點擊「產生隨機數」</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="chart-area">
+            <div class="stage-area">
+                <div class="lectern">講 台</div>
+            </div>
+            <div id="seatMap">載入中...</div>
+            <div id="resultActions" class="result-actions" style="display:none;"></div>
+        </div>
+    </div>
+
+    <script>
+        // **********************************************
+        // 🔹 請填入您的 Apps Script URL 🔹
+        const APPS_SCRIPT_API_URL = 'https://script.google.com/macros/s/AKfycbz1qRFp0IC6RAUJvosl-ACMuCRD42S7mFUFZMp_vtsNs7nLLxhBWXtAfHm_E3E4iccOoA/exec'; // 請填入您的網址
+        // **********************************************
+
+        const ROW_LETTERS = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'];
+        const STORAGE_KEY = 'seatDistributionRecord'; // localStorage 鍵值
+        
+        // 全域變數
+        let globalData = {}; // 存放 API 回傳的完整資料
+        let adjustments = {}; // 存放手動調整的分數 { studentId: score }
+        let distributionOrder = []; // 最終排序後的學生 ID 陣列
+        let availableSeats = []; // 目前可用的座位
+        let finalDistribution = {}; // 最終結果
+        let modifiedThisSession = false; // 本次是否修改過座位
+
+        // 初始化
+        async function init() {
+            try {
+                // 1. 載入資料
+                const res = await fetch(APPS_SCRIPT_API_URL);
+                const json = await res.json();
+                globalData = json.data;
+
+                if (!globalData.students || !globalData.config) {
+                    alert("資料不完整，請檢查 Google Sheet SystemData 設定。");
+                    return;
+                }
+
+                // 2. 檢查是否有上次的修改記錄
+                checkStorageRecord();
+
+                // 3. 渲染畫面
+                renderStudentTable();
+                renderSeatMap();
+
+                // 4. 綁定按鈕
+                document.getElementById('btnGenerate').onclick = generateOrder;
+                document.getElementById('btnStart').onclick = startDistribution;
+
+            } catch (e) {
+                console.error(e);
+                alert("載入失敗: " + e.message);
+            }
+        }
+
+        // 檢查本地儲存的修改記錄
+        function checkStorageRecord() {
+            const record = localStorage.getItem(STORAGE_KEY);
+            const statusDiv = document.getElementById('recordStatus');
+            
+            if (record) {
+                try {
+                    const data = JSON.parse(record);
+                    statusDiv.className = 'record-status exists';
+                    statusDiv.innerHTML = `
+                        ✅ 發現上次修改記錄 (${new Date(data.timestamp).toLocaleString('zh-TW')})
+                        <br><small>點擊「產生隨機數」時將使用此記錄順序</small>
+                    `;
+                } catch (e) {
+                    localStorage.removeItem(STORAGE_KEY);
+                    statusDiv.className = 'record-status none';
+                    statusDiv.textContent = '📝 無修改記錄 - 將使用完全隨機順序';
+                }
+            } else {
+                statusDiv.className = 'record-status none';
+                statusDiv.textContent = '📝 無修改記錄 - 將使用完全隨機順序';
+            }
+        }
+
+        // 渲染左上角學生列表 (包含調整輸入框)
+        function renderStudentTable() {
+            const tbody = document.getElementById('studentTableBody');
+            tbody.innerHTML = '';
+            
+            const sortedIds = Object.keys(globalData.students).sort((a,b)=>a-b);
+
+            sortedIds.forEach(id => {
+                const name = globalData.students[id];
+                const wishes = globalData.volunteers[id];
+                
+                // 判斷狀態
+                let statusBadge = '<span class="tag tag-empty">未填</span>';
+                if (wishes) {
+                    statusBadge = wishes.length > 0 
+                        ? `<span class="tag tag-filled">已填</span>`
+                        : `<span class="tag tag-random">隨機</span>`;
+                }
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${id}</td>
+                    <td>${name}</td>
+                    <td>${statusBadge}</td>
+                    <td><input type="number" class="adj-input" data-id="${id}" value="0"></td>
+                    <td class="score-cell" id="score-${id}">-</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // 綁定輸入框事件
+            document.querySelectorAll('.adj-input').forEach(input => {
+                input.addEventListener('change', (e) => {
+                    const id = e.target.dataset.id;
+                    adjustments[id] = parseInt(e.target.value) || 0;
+                });
+            });
+        }
+
+        // 渲染右側座位表
+        function renderSeatMap() {
+            const config = globalData.config;
+            const map = document.getElementById('seatMap');
+            map.innerHTML = '';
+            map.style.gridTemplateColumns = `repeat(${config.cols}, auto)`;
+
+            availableSeats = [];
+
+            for(let r=0; r<config.rows; r++) {
+                for(let c=1; c<=config.cols; c++) {
+                    const id = ROW_LETTERS[r] + c;
+                    const div = document.createElement('div');
+                    div.className = 'seat';
+                    div.innerHTML = `<div class="student-id"></div><div class="seat-id">${id}</div>`;
+                    div.dataset.id = id;
+
+                    if(config.unavailable.includes(id)) {
+                        div.className += ' unavailable';
+                    } else {
+                        availableSeats.push(id); // 收集可用座位
+                    }
+                    map.appendChild(div);
+                }
+            }
+        }
+
+        // 步驟 1: 產生隨機數與順序
+        function generateOrder() {
+            distributionOrder = [];
+            const record = localStorage.getItem(STORAGE_KEY);
+
+            // 如果有修改記錄，優先使用記錄的順序
+            if (record) {
+                try {
+                    const data = JSON.parse(record);
+                    if (confirm('🔄 發現上次修改記錄！\n\n是否使用上次的座位分配順序？\n\n點「確定」= 使用上次順序\n點「取消」= 產生全新隨機順序')) {
+                        // 使用記錄的順序
+                        distributionOrder = data.order;
+                        const scoreList = data.order.map((id, idx) => ({
+                            id,
+                            totalScore: 100 - idx, // 反向顯示分數
+                            isFromRecord: true
+                        }));
+                        renderOrderList(scoreList);
+                        document.getElementById('btnStart').disabled = false;
+                        alert("✅ 已載入上次的修改順序！請確認後，按下「開始分發」。");
+                        return;
+                    } else {
+                        // 清除記錄，產生全新隨機順序
+                        localStorage.removeItem(STORAGE_KEY);
+                        checkStorageRecord();
+                    }
+                } catch (e) {
+                    console.error('記錄讀取失敗:', e);
+                    localStorage.removeItem(STORAGE_KEY);
+                }
+            }
+
+            // 產生全新隨機順序
+            const studentIds = Object.keys(globalData.students);
+            const scoreList = [];
+
+            // 計算分數
+            studentIds.forEach(id => {
+                const baseScore = Math.random() * 25 + 25; 
+                const adj = adjustments[id] || 0;
+                const totalScore = baseScore + adj;
+
+                const displayBase = baseScore.toFixed(0);
+                const displayTotal = totalScore.toFixed(0);
+
+                // 更新表格顯示
+                const cell = document.getElementById(`score-${id}`);
+                if(cell) {
+                    const sign = adj >= 0 ? '+' : '';
+                    cell.innerHTML = `<b>${displayTotal}</b> <span style="color:#888;font-size:11px;">(${displayBase}${sign}${adj})</span>`;
+                }
+
+                scoreList.push({ id, totalScore });
+            });
+
+            // 排序 (高分在前)
+            scoreList.sort((a, b) => b.totalScore - a.totalScore);
+            
+            distributionOrder = scoreList.map(item => item.id);
+
+            // 更新左下角順序列表
+            renderOrderList(scoreList);
+
+            // 啟用開始分發按鈕
+            document.getElementById('btnStart').disabled = false;
+            alert("隨機數已產生！請確認順序無誤後，按下「開始分發」。");
+        }
+        
+        function renderOrderList(scoreList) {
+            const ul = document.getElementById('orderList');
+            ul.innerHTML = '';
+            scoreList.forEach((item, index) => {
+                const name = globalData.students[item.id];
+                const li = document.createElement('li');
+                li.id = `order-${item.id}`;
+                const isFromRecord = item.isFromRecord ? ' 📌' : '';
+                li.innerHTML = `
+                    <span>#${index+1} <b>${item.id}號</b> ${name}${isFromRecord}</span>
+                    <span>${item.totalScore.toFixed(0)}分</span>
+                `;
+                ul.appendChild(li);
+            });
+        }
+
+        // 步驟 2: 開始分發
+        async function startDistribution() {
+            document.getElementById('btnStart').disabled = true;
+            document.getElementById('btnGenerate').disabled = true;
+            
+            // 重置座位狀態
+            renderSeatMap(); 
+            finalDistribution = {};
+            modifiedThisSession = false;
+            let currentAvailable = [...availableSeats];
+
+            for (const sid of distributionOrder) {
+                // 標記目前正在分發的學生
+                const li = document.getElementById(`order-${sid}`);
+                if(li) {
+                    li.scrollIntoView({ behavior: "smooth", block: "center" });
+                    li.classList.add('active');
+                }
+
+                let assignedSeat = null;
+                const wishes = globalData.volunteers[sid] || []; // 取得志願 (可能是空陣列)
+
+                // 策略 1: 檢查志願
+                for (const seat of wishes) {
+                    const idx = currentAvailable.indexOf(seat);
+                    if (idx !== -1) {
+                        assignedSeat = seat;
+                        currentAvailable.splice(idx, 1);
+                        break;
+                    }
+                }
+
+                // 策略 2: 無志願或志願被搶 -> 隨機分配
+                if (!assignedSeat) {
+                    if (currentAvailable.length > 0) {
+                        const randIdx = Math.floor(Math.random() * currentAvailable.length);
+                        assignedSeat = currentAvailable[randIdx];
+                        currentAvailable.splice(randIdx, 1);
+                    } else {
+                        console.warn(`學生 ${sid} 無位可坐！`);
+                    }
+                }
+
+                // 執行分發動畫
+                if (assignedSeat) {
+                    finalDistribution[sid] = assignedSeat;
+                    const seatEl = document.querySelector(`.seat[data-id="${assignedSeat}"]`);
+                    if (seatEl) {
+                        seatEl.classList.add('distributed');
+                        seatEl.querySelector('.student-id').textContent = sid;
+                    }
+                }
+
+                // 更新列表狀態
+                if(li) {
+                    li.classList.remove('active');
+                    li.classList.add('done');
+                    li.innerHTML += ` &rarr; <b>${assignedSeat || 'X'}</b>`;
+                }
+
+                // 暫停 1 秒讓老師看清楚
+                await new Promise(r => setTimeout(r, 1000));
+            }
+
+            alert("🎉 全部分發完畢！");
+            
+            // 啟用座位調整功能
+            enableSeatAdjustment();
+            
+            // 顯示結果操作按鈕
+            showResultActions();
+        }
+
+        // 啟用座位調整功能
+        function enableSeatAdjustment() {
+            const seats = document.querySelectorAll('.seat.distributed');
+            seats.forEach(seat => {
+                seat.title = '雙擊修改座位分配';
+                seat.addEventListener('dblclick', (e) => {
+                    openSeatDialog(seat);
+                });
+            });
+        }
+
+        // 座位調整對話框
+        function openSeatDialog(seatEl) {
+            const currentSeatId = seatEl.dataset.id;
+            const currentStudentId = seatEl.querySelector('.student-id').textContent;
+            
+            const newSeatId = prompt(
+                `修改 ${currentStudentId}號 的座位\n\n` +
+                `目前座位: ${currentSeatId}\n` +
+                `請輸入新座位代碼 (如：A1, B3)，或留空取消：`,
+                currentSeatId
+            );
+
+            if (!newSeatId || newSeatId.trim() === '') return;
+
+            // 檢查新座位是否有效
+            const newSeatEl = document.querySelector(`.seat[data-id="${newSeatId.toUpperCase()}"]`);
+            if (!newSeatEl) {
+                alert(`❌ 座位「${newSeatId}」不存在！`);
+                return;
+            }
+
+            if (newSeatEl.classList.contains('unavailable')) {
+                alert(`❌ 座位「${newSeatId}」不可使用！`);
+                return;
+            }
+
+            // 交換座位邏輯
+            if (newSeatEl.classList.contains('distributed')) {
+                // 新座位已被佔用，交換兩個學生
+                const swapStudentId = newSeatEl.querySelector('.student-id').textContent;
+                
+                if (!confirm(`座位「${newSeatId}」已分配給 ${swapStudentId}號\n是否要與 ${swapStudentId}號互換座位？`)) {
+                    return;
+                }
+
+                // 執行交換
+                newSeatEl.querySelector('.student-id').textContent = currentStudentId;
+                seatEl.querySelector('.student-id').textContent = swapStudentId;
+                
+                // 更新記錄
+                const tempSeat = finalDistribution[currentStudentId];
+                finalDistribution[currentStudentId] = finalDistribution[swapStudentId];
+                finalDistribution[swapStudentId] = tempSeat;
+
+                modifiedThisSession = true;
+                alert(`✅ 已交換！\n${currentStudentId}號 → ${newSeatId}\n${swapStudentId}號 → ${currentSeatId}`);
+            } else {
+                // 新座位未被佔用，直接移動
+                newSeatEl.classList.add('distributed');
+                newSeatEl.querySelector('.student-id').textContent = currentStudentId;
+                
+                seatEl.classList.remove('distributed');
+                seatEl.querySelector('.student-id').textContent = '';
+                
+                finalDistribution[currentStudentId] = newSeatId.toUpperCase();
+                modifiedThisSession = true;
+                alert(`✅ 已修改！${currentStudentId}號 → ${newSeatId.toUpperCase()}`);
+            }
+
+            // 重新綁定事件
+            enableSeatAdjustment();
+        }
+
+        // 導出最終結果
+        function exportResults() {
+            let results = '最終座位分配結果：\n\n';
+            Object.keys(finalDistribution).sort((a,b) => a-b).forEach(studentId => {
+                const seatId = finalDistribution[studentId];
+                const name = globalData.students[studentId];
+                results += `${studentId}號 ${name} → ${seatId}\n`;
+            });
+            
+            alert(results);
+            console.log(results);
+        }
+
+        // 保存修改記錄
+        function saveModificationRecord() {
+            if (!modifiedThisSession) {
+                alert("⚠️ 本次分發中未進行任何座位修改，無需保存。");
+                return;
+            }
+
+            // 根據最終座位分配重新排序
+            const finalOrder = Object.keys(finalDistribution)
+                .sort((a, b) => {
+                    const seatA = finalDistribution[a];
+                    const seatB = finalDistribution[b];
+                    
+                    // 按行字母排序
+                    if (seatA[0] !== seatB[0]) {
+                        return seatA[0].localeCompare(seatB[0]);
+                    }
+                    // 同行按數字排序
+                    return parseInt(seatA.slice(1)) - parseInt(seatB.slice(1));
+                });
+
+            const record = {
+                order: finalOrder,
+                distribution: finalDistribution,
+                timestamp: new Date().toISOString()
+            };
+
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(record));
+            alert(`✅ 修改記錄已保存！\n\n下次產生隨機數時，可選擇使用此順序。\n\n保存時間: ${new Date().toLocaleString('zh-TW')}`);
+            
+            // 更新狀態顯示
+            checkStorageRecord();
+        }
+
+        // 清除修改記錄
+        function clearModificationRecord() {
+            if (!localStorage.getItem(STORAGE_KEY)) {
+                alert("❌ 目前沒有保存的修改記錄。");
+                return;
+            }
+
+            if (confirm("⚠️ 確定要清除上次的修改記錄嗎？\n\n清除後將無法恢復。")) {
+                localStorage.removeItem(STORAGE_KEY);
+                alert("✅ 修改記錄已清除！");
+                checkStorageRecord();
+            }
+        }
+
+        // 顯示結果操作按鈕
+        function showResultActions() {
+            const actionDiv = document.getElementById('resultActions');
+            actionDiv.style.display = 'flex';
+            actionDiv.innerHTML = `
+                <button onclick="exportResults()" style="background:#28a745;">📥 導出結果</button>
+                <button onclick="saveModificationRecord()" style="background:#007bff;">💾 保存修改記錄</button>
+                <button onclick="clearModificationRecord()" style="background:#ffc107; color:#000;">🗑️ 清除記錄</button>
+                <button onclick="location.reload()" style="background:#6c757d;">🔄 重新開始</button>
+            `;
+        }
+
+        init();
+    </script>
+</body>
+</html>
