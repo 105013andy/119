@@ -43,6 +43,7 @@
         .tag-filled { background: #e3f2fd; color: #0d47a1; }
         .tag-empty { background: #ffebee; color: #c62828; }
         .tag-random { background: #e0f2f1; color: #00695c; }
+        .tag-excluded { background: #f3e5f5; color: #6a1b9a; }
 
         /* 區塊 2: 分發順序列表 */
         #orderList { list-style: none; padding: 0; margin: 0; }
@@ -143,6 +144,10 @@
         const APPS_SCRIPT_API_URL = 'https://script.google.com/macros/s/AKfycbz1qRFp0IC6RAUJvosl-ACMuCRD42S7mFUFZMp_vtsNs7nLLxhBWXtAfHm_E3E4iccOoA/exec'; // 請填入您的網址
         // **********************************************
 
+        // 🔹 不分發的學生編號 (修改這裡!) 🔹
+        const EXCLUDED_STUDENTS = [11, 13]; // 11、13 號同學不參與分發
+        // **********************************************
+
         const ROW_LETTERS = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'];
         
         // 全域變數
@@ -189,10 +194,13 @@
             sortedIds.forEach(id => {
                 const name = globalData.students[id];
                 const wishes = globalData.volunteers[id];
+                const isExcluded = EXCLUDED_STUDENTS.includes(parseInt(id));
                 
                 // 判斷狀態
                 let statusBadge = '<span class="tag tag-empty">未填</span>';
-                if (wishes) {
+                if (isExcluded) {
+                    statusBadge = '<span class="tag tag-excluded">不分發</span>';
+                } else if (wishes) {
                     statusBadge = wishes.length > 0 
                         ? `<span class="tag tag-filled">已填</span>`
                         : `<span class="tag tag-random">隨機</span>`;
@@ -203,8 +211,8 @@
                     <td>${id}</td>
                     <td>${name}</td>
                     <td>${statusBadge}</td>
-                    <td><input type="number" class="adj-input" data-id="${id}" value="0"></td>
-                    <td class="score-cell" id="score-${id}">-</td>
+                    <td><input type="number" class="adj-input" data-id="${id}" value="0" ${isExcluded ? 'disabled' : ''}></td>
+                    <td class="score-cell" id="score-${id}">${isExcluded ? '不分發' : '-'}</td>
                 `;
                 tbody.appendChild(tr);
             });
@@ -253,6 +261,13 @@
 
             // 計算分數
             studentIds.forEach(id => {
+                const isExcluded = EXCLUDED_STUDENTS.includes(parseInt(id));
+                
+                if (isExcluded) {
+                    // 排除不分發的學生
+                    return;
+                }
+
                 // 1. 移除 Math.floor，保留小數點 (例如 85.4123...)
                 const baseScore = Math.random() * 25+25; 
                 const adj = adjustments[id] || 0;
@@ -289,21 +304,6 @@
         }
         
         // 配合修改列表顯示 (取小數點1位)
-        function renderOrderList(scoreList) {
-            const ul = document.getElementById('orderList');
-            ul.innerHTML = '';
-            scoreList.forEach((item, index) => {
-                const name = globalData.students[item.id];
-                const li = document.createElement('li');
-                li.id = `order-${item.id}`;
-                li.innerHTML = `
-                    <span>#${index+1} <b>${item.id}號</b> ${name}</span>
-                    <span>${item.totalScore.toFixed(0)}分</span>
-                `;
-                ul.appendChild(li);
-            });
-        }
-
         function renderOrderList(scoreList) {
             const ul = document.getElementById('orderList');
             ul.innerHTML = '';
