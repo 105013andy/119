@@ -1,0 +1,78 @@
+
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>座位設定 (產生代碼)</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #f4f7f9; display: flex; flex-direction: column; align-items: center; }
+        .controls, .seating-chart { background: #fff; padding: 20px; border-radius: 8px; margin-bottom: 20px; width: 100%; max-width: 600px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .seat { background: #28a745; color: white; height: 50px; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 4px; }
+        .seat.unavailable { background: #dc3545; }
+        #seatMap { display: grid; gap: 5px; margin-top: 10px; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        textarea { width: 100%; height: 100px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <h2>1. 設定規格</h2>
+        列數: <input type="number" id="rows" value="5" min="1" style="width:50px"> 
+        行數: <input type="number" id="cols" value="6" min="1" style="width:50px">
+        <button id="generateBtn">產生/重置座位表</button>
+    </div>
+
+    <div class="seating-chart">
+        <h2>2. 點擊座位切換紅/綠 (紅=不坐人)</h2>
+        <div id="seatMap"></div>
+        <br>
+        <button id="exportBtn">3. 產生設定代碼</button>
+        <p>請複製下方代碼，貼到 Google Sheet <b>SystemData</b> 分頁的 <b>B2</b> 儲存格：</p>
+        <textarea id="outputCode" readonly></textarea>
+    </div>
+
+    <script>
+        const ROW_LETTERS = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'];
+        const seatMap = document.getElementById('seatMap');
+        
+        // 產生座位表
+        function generateMap() {
+            const rows = parseInt(document.getElementById('rows').value);
+            const cols = parseInt(document.getElementById('cols').value);
+            seatMap.innerHTML = '';
+            seatMap.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+
+            for(let r=0; r<rows; r++){
+                for(let c=1; c<=cols; c++){
+                    const id = ROW_LETTERS[r] + c;
+                    const div = document.createElement('div');
+                    div.className = 'seat';
+                    div.textContent = id;
+                    div.dataset.id = id;
+                    div.onclick = () => div.classList.toggle('unavailable');
+                    seatMap.appendChild(div);
+                }
+            }
+        }
+
+        document.getElementById('generateBtn').onclick = generateMap;
+        
+        document.getElementById('exportBtn').onclick = () => {
+            const rows = parseInt(document.getElementById('rows').value);
+            const cols = parseInt(document.getElementById('cols').value);
+            const unavailable = Array.from(document.querySelectorAll('.seat.unavailable')).map(el => el.dataset.id);
+            const config = JSON.stringify({ rows, cols, unavailable });
+            
+            const output = document.getElementById('outputCode');
+            output.value = config;
+            output.select();
+            document.execCommand("copy");
+            alert("代碼已複製！請去 Google Sheet 的 SystemData 分頁，貼在 B2 儲存格。");
+        };
+
+        generateMap(); // 預設執行一次
+    </script>
+</body>
+</html>
