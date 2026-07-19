@@ -8,16 +8,45 @@
         /* --- 基礎樣式 --- */
         body { font-family: 'Segoe UI', 'Microsoft JhengHei', sans-serif; padding: 20px; background-color: #f4f7f9; display: flex; flex-direction: column; height: 95vh; box-sizing: border-box; }
         h1 { color: #333; text-align: center; margin: 0 0 20px 0; font-size: 24px; }
-
-        <!-- 交換座位控制區 (在 h1 和 main-container 之間) -->
-        <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 15px; text-align: center;">
-            <p style="margin: 0 0 10px 0; font-weight: bold;">🔄 座位交換模式</p>
-            <button id="btnSwapMode" style="padding: 10px 20px; background: #ffc107; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">
-                開啟交換模式
-            </button>
-            <span id="swapStatus" style="margin-left: 15px; color: #666;"></span>
-        </div>
         
+        /* --- 交換座位控制區 --- */
+        .swap-control-area {
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            text-align: center;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+        }
+
+        .swap-control-area p {
+            margin: 0 0 10px 0;
+            font-weight: bold;
+            color: #333;
+        }
+
+        #btnSwapMode {
+            padding: 10px 20px;
+            background: #ffc107;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        #btnSwapMode:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        #swapStatus {
+            margin-left: 15px;
+            color: #666;
+            font-size: 14px;
+        }
+
         /* --- 版面配置 --- */
         .main-container { display: flex; gap: 20px; flex: 1; overflow: hidden; }
         
@@ -97,15 +126,12 @@
             background-color: #007bff; border-color: #0056b3; color: white; 
             transform: scale(1.05); box-shadow: 0 4px 8px rgba(0,123,255,0.3); z-index: 10;
         }
-        
-        .seat-id { font-size: 10px; margin-top: 2px; opacity: 0.8; }
-        .student-id { font-size: 20px; font-weight: bold; line-height: 1; }
 
-                /* 交換模式選中效果 */
+        /* 交換模式選中效果 */
         .seat.swap-selected {
             border: 3px dashed #ff6b6b !important;
             background-color: #ffe0e0 !important;
-            box-shadow: 0 0 0 4px rgba(255, 107, 107, 0.2);
+            box-shadow: 0 0 0 4px rgba(255, 107, 107, 0.2) !important;
         }
 
         /* 交換模式下已分發座位可點擊 */
@@ -113,11 +139,21 @@
             opacity: 0.9;
             transform: scale(1.1);
         }
+        
+        .seat-id { font-size: 10px; margin-top: 2px; opacity: 0.8; }
+        .student-id { font-size: 20px; font-weight: bold; line-height: 1; }
     </style>
 </head>
 <body>
 
     <h1>🧑‍🏫 座位分發系統</h1>
+
+    <!-- 交換座位控制區 -->
+    <div class="swap-control-area">
+        <p>🔄 座位交換模式</p>
+        <button id="btnSwapMode">開啟交換模式</button>
+        <span id="swapStatus"></span>
+    </div>
 
     <div class="main-container">
         <div class="sidebar">
@@ -178,6 +214,97 @@
         let distributionOrder = []; // 最終排序後的學生 ID 陣列
         let availableSeats = []; // 目前可用的座位
         let finalDistribution = {}; // 最終結果
+
+        // ========== 【座位交換功能】==========
+        let swapMode = false;
+        let selectedSeat1 = null;
+        let selectedSeat2 = null;
+
+        // 開啟/關閉交換模式
+        document.getElementById('btnSwapMode').onclick = () => {
+            if(!Object.keys(finalDistribution).length) {
+                alert("請先完成分發！");
+                return;
+            }
+            
+            swapMode = !swapMode;
+            const btn = document.getElementById('btnSwapMode');
+            const status = document.getElementById('swapStatus');
+            
+            if(swapMode) {
+                btn.style.background = '#ff6b6b';
+                btn.textContent = '❌ 關閉交換模式';
+                status.textContent = '(已開啟，請選擇要交換的兩個座位)';
+                status.style.color = '#ff6b6b';
+                status.style.fontWeight = 'bold';
+                document.querySelectorAll('.seat.distributed').forEach(el => {
+                    el.style.cursor = 'pointer';
+                });
+            } else {
+                btn.style.background = '#ffc107';
+                btn.textContent = '開啟交換模式';
+                status.textContent = '';
+                selectedSeat1 = null;
+                selectedSeat2 = null;
+                document.querySelectorAll('.seat.distributed').forEach(el => {
+                    el.style.cursor = 'default';
+                    el.classList.remove('swap-selected');
+                });
+            }
+        };
+
+        // 執行座位交換
+        function performSwap(seat1Id, seat2Id) {
+            // 取得兩個座位的學生編號
+            const student1 = Object.keys(finalDistribution).find(sid => finalDistribution[sid] === seat1Id);
+            const student2 = Object.keys(finalDistribution).find(sid => finalDistribution[sid] === seat2Id);
+            
+            if(!student1 || !student2) {
+                alert("交換失敗！");
+                return;
+            }
+
+            // 交換座位分配
+            finalDistribution[student1] = seat2Id;
+            finalDistribution[student2] = seat1Id;
+
+            // 更新 DOM
+            const seatEl1 = document.querySelector(`.seat[data-id="${seat1Id}"]`);
+            const seatEl2 = document.querySelector(`.seat[data-id="${seat2Id}"]`);
+            
+            seatEl1.querySelector('.student-id').textContent = student2;
+            seatEl2.querySelector('.student-id').textContent = student1;
+
+            alert(`✅ 已交換！\n${student1}號 ↔️ ${student2}號`);
+        }
+
+        // 綁定座位點擊事件以交���
+        function bindSeatClickForSwap() {
+            document.querySelectorAll('.seat.distributed').forEach(seatEl => {
+                seatEl.onclick = (e) => {
+                    if(!swapMode) return;
+                    
+                    const seatId = seatEl.dataset.id;
+                    
+                    if(!selectedSeat1) {
+                        selectedSeat1 = seatId;
+                        seatEl.classList.add('swap-selected');
+                    } else if(selectedSeat1 === seatId) {
+                        // 取消選擇
+                        selectedSeat1 = null;
+                        seatEl.classList.remove('swap-selected');
+                    } else {
+                        selectedSeat2 = seatId;
+                        // 執行交換
+                        performSwap(selectedSeat1, selectedSeat2);
+                        document.querySelector(`.seat[data-id="${selectedSeat1}"]`).classList.remove('swap-selected');
+                        seatEl.classList.remove('swap-selected');
+                        selectedSeat1 = null;
+                        selectedSeat2 = null;
+                    }
+                };
+            });
+        }
 
         // 初始化
         async function init() {
@@ -268,13 +395,12 @@
                     if(config.unavailable.includes(id)) {
                         div.className += ' unavailable';
                     } else {
-                        availableSeats.push(id);
+                        availableSeats.push(id); // 收集可用座位
                     }
                     map.appendChild(div);
                 }
             }
-            
-            // 🔴 在這裡加入交換模式的綁定
+
             bindSeatClickForSwap();
         }
 
@@ -407,105 +533,15 @@
                 await new Promise(r => setTimeout(r, 1000));
             }
 
-            alert("🎉 全部分發完畢！");
+            // 重新綁定交換事件
+            bindSeatClickForSwap();
+
+            alert("🎉 全部分發完畢！\n\n現在可以點擊「開啟交換模式」進行座位交換。");
             // 可選擇是否開啟重置按鈕
             // document.getElementById('btnGenerate').disabled = false;
         }
 
         init();
-
-                // ========== 【座位交換功能】==========
-        let swapMode = false;
-        let selectedSeat1 = null;
-        let selectedSeat2 = null;
-
-        // 開啟/關閉交換模式
-        document.getElementById('btnSwapMode').onclick = () => {
-            if(!Object.keys(finalDistribution).length) {
-                alert("請先完成分發！");
-                return;
-            }
-            
-            swapMode = !swapMode;
-            const btn = document.getElementById('btnSwapMode');
-            const status = document.getElementById('swapStatus');
-            
-            if(swapMode) {
-                btn.style.background = '#ff6b6b';
-                btn.textContent = '❌ 關閉交換模式';
-                status.textContent = '(已開啟，請選擇要交換的兩個座位)';
-                status.style.color = '#ff6b6b';
-                document.querySelectorAll('.seat.distributed').forEach(el => {
-                    el.style.cursor = 'pointer';
-                });
-            } else {
-                btn.style.background = '#ffc107';
-                btn.textContent = '開啟交換模式';
-                status.textContent = '';
-                selectedSeat1 = null;
-                selectedSeat2 = null;
-                document.querySelectorAll('.seat.distributed').forEach(el => {
-                    el.style.cursor = 'default';
-                    el.classList.remove('swap-selected');
-                });
-            }
-        };
-
-        // 修改座位點擊事件邏輯
-        // 在 renderSeatMap() 函數最後加入這段
-        function bindSeatClickForSwap() {
-            document.querySelectorAll('.seat.distributed').forEach(seatEl => {
-                seatEl.onclick = (e) => {
-                    if(!swapMode) return;
-                    
-                    const seatId = seatEl.dataset.id;
-                    
-                    if(!selectedSeat1) {
-                        selectedSeat1 = seatId;
-                        seatEl.classList.add('swap-selected');
-                    } else if(selectedSeat1 === seatId) {
-                        // 取消選擇
-                        selectedSeat1 = null;
-                        seatEl.classList.remove('swap-selected');
-                    } else {
-                        selectedSeat2 = seatId;
-                        // 執行交換
-                        performSwap(selectedSeat1, selectedSeat2);
-                        seatEl.classList.remove('swap-selected');
-                        document.querySelector(`.seat[data-id="${selectedSeat1}"]`).classList.remove('swap-selected');
-                        selectedSeat1 = null;
-                        selectedSeat2 = null;
-                    }
-                };
-            });
-        }
-
-        // 執行座位交換
-        function performSwap(seat1Id, seat2Id) {
-            // 取得兩個座位的學生編號
-            const student1 = Object.keys(finalDistribution).find(sid => finalDistribution[sid] === seat1Id);
-            const student2 = Object.keys(finalDistribution).find(sid => finalDistribution[sid] === seat2Id);
-            
-            if(!student1 || !student2) {
-                alert("交換失敗！");
-                return;
-            }
-
-            // 交換座位分配
-            finalDistribution[student1] = seat2Id;
-            finalDistribution[student2] = seat1Id;
-
-            // 更新 DOM
-            const seatEl1 = document.querySelector(`.seat[data-id="${seat1Id}"]`);
-            const seatEl2 = document.querySelector(`.seat[data-id="${seat2Id}"]`);
-            
-            seatEl1.querySelector('.student-id').textContent = student2;
-            seatEl2.querySelector('.student-id').textContent = student1;
-
-            alert(`✅ 已交換！\n${student1}號 ↔️ ${student2}號`);
-        }
-
-        // 在 renderSeatMap() 結尾呼叫
     </script>
 </body>
 </html>
